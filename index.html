@@ -1,0 +1,351 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SPACE SHOOTER</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:15px;background:#080b20;color:white;font-family:Arial;text-align:center}
+h1{color:#54eaff;text-shadow:0 0 15px #00cfff}
+.panel,.shop{max-width:700px;margin:20px auto;padding:20px;background:#171b3d;border:2px solid #54eaff;border-radius:15px}
+input{display:block;width:100%;padding:13px;margin:12px 0;border-radius:8px;border:1px solid #54eaff;background:#080b20;color:white}
+button{background:#08bce8;color:#061020;border:0;padding:12px 16px;border-radius:9px;font-weight:bold;cursor:pointer;margin:5px}
+button:hover{background:#8df4ff}
+#game{width:min(95vw,700px);height:auto;background:linear-gradient(#080b20,#17104a);border:3px solid #54eaff;border-radius:12px;display:block;margin:15px auto}
+#gameArea{display:none}
+#message{color:#ffe66d;min-height:25px}
+.small{font-size:13px;color:#b9c9e9}
+.ship{display:inline-block;width:145px;background:#080b20;border:1px solid #54eaff;border-radius:10px;padding:10px;margin:5px;vertical-align:top}
+.shipIcon{font-size:35px}
+.shop h2{color:#d9a0ff}
+</style>
+</head>
+<body>
+
+<h1>🚀 SPACE SHOOTER</h1>
+
+<div class="panel" id="loginPanel">
+<h2>🔐 Entrar no jogo</h2>
+<input id="email" type="email" placeholder="Seu e-mail">
+<input id="password" type="password" placeholder="Sua senha">
+<button onclick="login()">ENTRAR</button>
+<button onclick="register()">CRIAR CONTA</button>
+<p id="loginMessage"></p>
+<p class="small">Login de demonstração. Não cria contas reais nem envia e-mails. Não use sua senha verdadeira.</p>
+</div>
+
+<div id="gameArea">
+<p>👤 Jogador: <span id="playerName"></span></p>
+<div>
+❤️ Vidas: <span id="lives">3</span> |
+⭐ Pontos: <span id="score">0</span> |
+🪙 Moedas: <span id="coins">0</span>
+</div>
+
+<div class="shop">
+<h2>🛸 LOJA DE 15 NAVES</h2>
+<p>Compre e equipe suas naves favoritas!</p>
+<div id="shipShop"></div>
+</div>
+
+<canvas id="game" width="700" height="450"></canvas>
+<div id="message">Prepare-se para defender o espaço!</div>
+<button onclick="startGame()">🚀 JOGAR</button>
+<button onclick="buyLife()">❤️ COMPRAR VIDA (20 moedas)</button>
+<button onclick="buyUpgrade()">💥 MELHORAR TIRO (30 moedas)</button>
+<button onclick="logout()">SAIR DA CONTA</button>
+<p>Movimento: ← → ou A e D | Atirar: ESPAÇO</p>
+</div>
+
+<script>
+
+// LOGIN DE DEMONSTRAÇÃO
+
+function login(){
+ const email=document.getElementById("email").value.trim();
+ const password=document.getElementById("password").value;
+ if(!email.includes("@")||password.length<6){
+  document.getElementById("loginMessage").textContent="Digite um e-mail válido e senha com pelo menos 6 caracteres!";
+  return;
+ }
+ enterGame(email);
+}
+
+function register(){
+ login();
+}
+
+function enterGame(email){
+ document.getElementById("loginPanel").style.display="none";
+ document.getElementById("gameArea").style.display="block";
+ document.getElementById("playerName").textContent=email;
+ renderShipShop();
+ updateInfo();
+}
+
+function logout(){
+ playing=false;
+ document.getElementById("gameArea").style.display="none";
+ document.getElementById("loginPanel").style.display="block";
+ document.getElementById("password").value="";
+}
+
+// LOJA COM 15 NAVES
+
+const ships=[
+ {id:"blue",name:"Nave Azul",price:0,color:"#48eaff",icon:"🚀"},
+ {id:"red",name:"Nave Vermelha",price:50,color:"#ff477e",icon:"🛸"},
+ {id:"purple",name:"Nave Roxa",price:100,color:"#a34bff",icon:"🚀"},
+ {id:"gold",name:"Nave Dourada",price:180,color:"#ffe66d",icon:"🌟"},
+ {id:"green",name:"Nave Verde",price:250,color:"#38ff8b",icon:"🛸"},
+ {id:"pink",name:"Nave Rosa",price:300,color:"#ff79df",icon:"💗"},
+ {id:"ice",name:"Nave de Gelo",price:400,color:"#a8f0ff",icon:"❄️"},
+ {id:"fire",name:"Nave de Fogo",price:500,color:"#ff6b24",icon:"🔥"},
+ {id:"ocean",name:"Nave Oceano",price:650,color:"#267bff",icon:"🌊"},
+ {id:"shadow",name:"Nave das Sombras",price:800,color:"#7777aa",icon:"🌑"},
+ {id:"rainbow",name:"Nave Arco-íris",price:1000,color:"#ff66cc",icon:"🌈"},
+ {id:"crystal",name:"Nave Cristal",price:1300,color:"#c6aaff",icon:"💎"},
+ {id:"galaxy",name:"Nave Galáxia",price:1600,color:"#9b5cff",icon:"🌌"},
+ {id:"robot",name:"Nave Robótica",price:2000,color:"#aaaaaa",icon:"🤖"},
+ {id:"legendary",name:"Nave Lendária",price:3000,color:"#fff000",icon:"👑"}
+];
+
+let coins=Number(localStorage.getItem("spaceCoins"))||0;
+let ownedShips=JSON.parse(localStorage.getItem("ownedShips")||'["blue"]');
+let selectedShip=localStorage.getItem("selectedShip")||"blue";
+
+function renderShipShop(){
+ const shop=document.getElementById("shipShop");
+ shop.innerHTML="";
+ ships.forEach(ship=>{
+  const owned=ownedShips.includes(ship.id);
+  const selected=selectedShip===ship.id;
+  const card=document.createElement("div");
+  card.className="ship";
+  card.innerHTML=`
+   <div class="shipIcon">${ship.icon}</div>
+   <h3 style="color:${ship.color}">${ship.name}</h3>
+   <p>${ship.price===0?"GRÁTIS":"🪙 "+ship.price+" moedas"}</p>
+   <button>${selected?"EQUIPADA":owned?"EQUIPAR":"COMPRAR"}</button>
+  `;
+  card.querySelector("button").onclick=()=>{
+   if(owned){
+    selectedShip=ship.id;
+    localStorage.setItem("selectedShip",selectedShip);
+    document.getElementById("message").textContent="Nave equipada!";
+   }else if(coins>=ship.price){
+    coins-=ship.price;
+    ownedShips.push(ship.id);
+    selectedShip=ship.id;
+    localStorage.setItem("spaceCoins",coins);
+    localStorage.setItem("ownedShips",JSON.stringify(ownedShips));
+    localStorage.setItem("selectedShip",selectedShip);
+    updateInfo();
+    document.getElementById("message").textContent="Nave comprada!";
+   }else{
+    document.getElementById("message").textContent="Moedas insuficientes!";
+   }
+   renderShipShop();
+  };
+  shop.appendChild(card);
+ });
+}
+
+// JOGO
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+let player,bullets=[],enemies=[],stars=[];
+let score=0,lives=3,level=1;
+let playing=false,boss=null,shotPower=1;
+let keys={},lastShot=0,enemyTimer=0;
+
+function updateInfo(){
+ document.getElementById("lives").textContent=lives;
+ document.getElementById("score").textContent=score;
+ document.getElementById("coins").textContent=coins;
+}
+
+function reset(){
+ player={x:330,y:385,speed:6};
+ bullets=[];enemies=[];stars=[];
+ for(let i=0;i<80;i++)stars.push({x:Math.random()*700,y:Math.random()*450,s:Math.random()*2+1});
+ score=0;lives=3;level=1;boss=null;enemyTimer=0;shotPower=1;
+ updateInfo();
+}
+
+function startGame(){
+ if(playing)return;
+ reset();
+ playing=true;
+ document.getElementById("message").textContent="Boa sorte, piloto!";
+ requestAnimationFrame(loop);
+}
+
+function drawPlayer(){
+ const ship=ships.find(s=>s.id===selectedShip);
+ ctx.fillStyle=ship?ship.color:"#48eaff";
+ ctx.beginPath();
+ ctx.moveTo(player.x+20,player.y);
+ ctx.lineTo(player.x,player.y+35);
+ ctx.lineTo(player.x+40,player.y+35);
+ ctx.closePath();ctx.fill();
+ ctx.fillStyle="white";
+ ctx.fillRect(player.x+16,player.y+20,8,12);
+}
+
+function shoot(){
+ const now=Date.now();
+ if(keys[" "]&&now-lastShot>230){
+  bullets.push({x:player.x+20,y:player.y});
+  if(shotPower>=2){
+   bullets.push({x:player.x+8,y:player.y+12});
+   bullets.push({x:player.x+32,y:player.y+12});
+  }
+  lastShot=now;
+ }
+}
+
+function spawnEnemy(){
+ enemies.push({x:Math.random()*650+10,y:-30,size:25+Math.random()*12,speed:1.5+level*.25});
+}
+
+function drawEnemy(e){
+ ctx.fillStyle="#ff477e";
+ ctx.beginPath();ctx.arc(e.x,e.y,e.size/2,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="white";
+ ctx.fillRect(e.x-7,e.y-4,5,5);
+ ctx.fillRect(e.x+3,e.y-4,5,5);
+}
+
+function drawBoss(){
+ if(!boss)return;
+ ctx.fillStyle="#a34bff";
+ ctx.fillRect(boss.x,boss.y,120,55);
+ ctx.fillStyle="#ffdf5d";
+ ctx.fillRect(boss.x+15,boss.y+15,20,12);
+ ctx.fillRect(boss.x+85,boss.y+15,20,12);
+ ctx.fillStyle="red";ctx.fillRect(230,20,240,12);
+ ctx.fillStyle="#38ff8b";
+ ctx.fillRect(230,20,240*(boss.hp/boss.maxHp),12);
+ ctx.fillStyle="white";ctx.fillText("CHEFÃO",320,15);
+}
+
+function buyLife(){
+ if(!playing){
+  document.getElementById("message").textContent="Comece uma partida para comprar vida!";
+  return;
+ }
+ if(coins>=20){
+  coins-=20;lives++;
+  localStorage.setItem("spaceCoins",coins);
+  updateInfo();
+ }else{
+  document.getElementById("message").textContent="Moedas insuficientes!";
+ }
+}
+
+function buyUpgrade(){
+ if(coins>=30){
+  coins-=30;
+  shotPower=Math.min(shotPower+1,3);
+  localStorage.setItem("spaceCoins",coins);
+  updateInfo();
+  document.getElementById("message").textContent="Tiro melhorado!";
+ }else{
+  document.getElementById("message").textContent="Moedas insuficientes!";
+ }
+}
+
+function endGame(){
+ playing=false;
+ document.getElementById("message").textContent=
+ "Fim de jogo! Você fez "+score+" pontos. Clique em JOGAR para tentar novamente.";
+}
+
+function loop(){
+ if(!playing)return;
+ ctx.clearRect(0,0,700,450);
+
+ ctx.fillStyle="white";
+ stars.forEach(s=>{
+  s.y+=s.s;
+  if(s.y>450){s.y=0;s.x=Math.random()*700;}
+  ctx.fillRect(s.x,s.y,2,2);
+ });
+
+ if(keys["ArrowLeft"]||keys["a"])player.x-=player.speed;
+ if(keys["ArrowRight"]||keys["d"])player.x+=player.speed;
+ player.x=Math.max(0,Math.min(660,player.x));
+
+ shoot();drawPlayer();
+
+ bullets.forEach(b=>{
+  b.y-=8;
+  ctx.fillStyle="#ffe66d";
+  ctx.fillRect(b.x-3,b.y,6,15);
+ });
+ bullets=bullets.filter(b=>b.y>-20);
+
+ enemyTimer++;
+ if(enemyTimer>Math.max(20,65-level*5)){
+  spawnEnemy();enemyTimer=0;
+ }
+
+ enemies.forEach(e=>{
+  e.y+=e.speed;drawEnemy(e);
+  if(e.y>420&&e.y<450){
+   lives--;e.y=500;updateInfo();
+   if(lives<=0)endGame();
+  }
+ });
+
+ bullets.forEach(b=>{
+  enemies.forEach(e=>{
+   if(Math.hypot(b.x-e.x,b.y-e.y)<e.size/2+8){
+    e.y=600;b.y=-50;score+=10;coins++;
+    localStorage.setItem("spaceCoins",coins);
+    updateInfo();
+   }
+  });
+
+  if(boss&&b.x>boss.x&&b.x<boss.x+120&&b.y>boss.y&&b.y<boss.y+55){
+   boss.hp-=shotPower;b.y=-50;
+   if(boss.hp<=0){
+    boss=null;score+=200;coins+=10;level++;
+    updateInfo();
+    localStorage.setItem("spaceCoins",coins);
+    document.getElementById("message").textContent="Chefão derrotado!";
+   }
+  }
+ });
+
+ enemies=enemies.filter(e=>e.y<490);
+
+ if(score>=100&&!boss&&level===1){
+  boss={x:290,y:65,hp:60,maxHp:60};
+  document.getElementById("message").textContent="CUIDADO! CHEGOU O CHEFÃO!";
+ }
+
+ if(boss){
+  boss.x+=Math.sin(Date.now()/400)*2;
+  drawBoss();
+ }
+
+ updateInfo();
+ if(playing)requestAnimationFrame(loop);
+}
+
+document.addEventListener("keydown",e=>{
+ keys[e.key]=true;
+ if([" ","ArrowLeft","ArrowRight"].includes(e.key))e.preventDefault();
+});
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+reset();
+
+</script>
+</body>
+</html>
